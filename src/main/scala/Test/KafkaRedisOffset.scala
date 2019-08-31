@@ -18,7 +18,7 @@ object KafkaRedisOffset {
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setAppName("offset").setMaster("local[2]")
       // 设置没秒钟每个分区拉取kafka的速率
-      .set("spark.streaming.kafka.maxRatePerPartition","100")
+      .set("spark.streaming.kafka.maxRatePerPartition","1000")
       // 设置序列化机制
       .set("spark.serlizer","org.apache.spark.serializer.KryoSerializer")
     val ssc = new StreamingContext(conf,Seconds(3))
@@ -27,9 +27,9 @@ object KafkaRedisOffset {
     // 组名
     val groupId = "zk002"
     // topic
-    val topic = "hz1803b"
+    val topic = "zf01"
     // 指定Kafka的broker地址（SparkStreaming程序消费过程中，需要和Kafka的分区对应）
-    val brokerList = "192.168.28.128:9092"
+    val brokerList = "192.168.186.110:9092"
     // 编写Kafka的配置参数
     val kafkas = Map[String,Object](
       "bootstrap.servers"->brokerList,
@@ -49,7 +49,7 @@ object KafkaRedisOffset {
     // 第三步提交更新Offset
     // 获取Offset
     var fromOffset:Map[TopicPartition,Long] = JedisOffset(groupId)
-    // 判断一下有没数据
+    // 判断一下有没数据-->如果没有数据 则是第一次消费
     val stream :InputDStream[ConsumerRecord[String,String]] =
       if(fromOffset.size == 0){
         KafkaUtils.createDirectStream(ssc,
@@ -61,7 +61,7 @@ object KafkaRedisOffset {
           ConsumerStrategies.Subscribe[String,String](topics,kafkas)
         )
       }else{
-        // 不是第一次消费
+        // 不是第一次消费-->获取当前的offset的值 从当前位置消费
         KafkaUtils.createDirectStream(
           ssc,
           LocationStrategies.PreferConsistent,
@@ -72,6 +72,7 @@ object KafkaRedisOffset {
       rdd=>
         val offestRange = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
         // 业务处理
+        println("******************************************")
         rdd.map(_.value()).foreach(println)
         // 将偏移量进行更新
         val jedis = JedisConnectionPool.getConnection()
